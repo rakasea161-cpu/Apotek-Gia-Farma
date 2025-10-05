@@ -22,6 +22,7 @@
     .menu button.active{background:rgba(255,255,255,0.12);}
     .userbox{margin-top:18px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08)}
     .userbox .name{font-weight:700}
+
     main.content{flex:1;padding:18px}
     header.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
     header.top .search{flex:1;max-width:480px}
@@ -87,21 +88,25 @@
   </div>
 
   <script>
+    // -------------------- App state --------------------
     const currentUser = localStorage.getItem('currentUser');
     const userRole = localStorage.getItem('userRole');
     if(!currentUser){ window.location.href = 'index.html'; }
 
+    // data stores
     let inventory = JSON.parse(localStorage.getItem('inventory')) || [];
     let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
     let purchases = JSON.parse(localStorage.getItem('purchases')) || [];
     let userLogs = JSON.parse(localStorage.getItem('userLogs')) || [];
 
+    // helpers
     const el = id => document.getElementById(id);
     function genId(p='id'){ return p+ '_' + Math.random().toString(36).slice(2,9); }
     function formatRupiah(n){ return 'Rp ' + new Intl.NumberFormat('id-ID').format(Number(n||0)); }
     function save(){ localStorage.setItem('inventory', JSON.stringify(inventory)); localStorage.setItem('transactions', JSON.stringify(transactions)); localStorage.setItem('purchases', JSON.stringify(purchases)); localStorage.setItem('userLogs', JSON.stringify(userLogs)); }
     function addUserLog(user,activity){ userLogs.push({id:genId('log'),user,activity,time:new Date().toLocaleString()}); save(); }
 
+    // UI refs
     const menuButtons = document.querySelectorAll('#menu button');
     const view = el('view');
     const searchInput = el('searchInput');
@@ -113,6 +118,7 @@
     userName.textContent = currentUser || '-';
     userRoleEl.textContent = userRole || '-';
 
+    // -------------------- Seed sample (if empty) --------------------
     function seedIfEmpty(){
       if(!localStorage.getItem('inventory')){
         inventory = [
@@ -124,9 +130,11 @@
     }
     seedIfEmpty();
 
+    // -------------------- Renderers --------------------
     function clearActiveMenu(){ menuButtons.forEach(b=>b.classList.remove('active')); }
     function showView(html){ view.innerHTML = html; }
 
+    // Inventory view
     function renderInventory(filter=''){
       clearActiveMenu(); document.querySelector('[data-tab="inventory"]').classList.add('active');
       const rows = inventory.filter(i => !filter || i.name.toLowerCase().includes(filter.toLowerCase()));
@@ -139,6 +147,7 @@
       html += `</tbody></table></div>`;
       showView(html);
 
+      // wire buttons
       el('btnAddMed').addEventListener('click', ()=>openMedForm());
       el('btnExportInv').addEventListener('click', ()=>exportCSV('inventory'));
       document.querySelectorAll('button[data-act]').forEach(b=>b.addEventListener('click', (ev)=>{
@@ -150,6 +159,7 @@
       }));
     }
 
+    // Transaction view
     function renderTransaction(){
       clearActiveMenu(); document.querySelector('[data-tab="transaction"]').classList.add('active');
       let html = `<div class="card"><h3>Transaksi Penjualan</h3>
@@ -171,6 +181,7 @@
       refreshTrx();
     }
 
+    // Purchase view
     function renderPurchase(){
       clearActiveMenu(); document.querySelector('[data-tab="purchase"]').classList.add('active');
       let html = `<div class="card"><h3>Pembelian (Tambah Stok)</h3>
@@ -183,6 +194,7 @@
       refreshPur();
     }
 
+    // Finance view
     function renderFinance(){
       if(userRole !== 'admin'){ clearActiveMenu(); document.querySelector('[data-tab="finance"]').classList.add('active'); showView('<div class="card"><h3>🔒 Akses Ditolak</h3><p>Menu Keuangan hanya untuk admin.</p></div>'); return; }
       clearActiveMenu(); document.querySelector('[data-tab="finance"]').classList.add('active');
@@ -195,6 +207,7 @@
       const ctx = document.getElementById('financeChart').getContext('2d'); if(window._financeChart) window._financeChart.destroy(); window._financeChart = new Chart(ctx,{type:'bar',data:{labels:['Penjualan','Pembelian','Laba Kotor','Saldo Bersih'],datasets:[{label:'Rupiah',data:[totalSales,totalPurchase,totalProfit,balance],backgroundColor:["#3dbe81","#f87171","#60a5fa","#00aab4"]}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
     }
 
+    // History view
     function renderHistory(){
       clearActiveMenu(); document.querySelector('[data-tab="history"]').classList.add('active');
       let html = `<div class="card"><h3>Riwayat Transaksi Obat</h3><label>Pilih Obat</label><select id="histMed"><option value="">-- Semua --</option>${inventory.map(i=>`<option value="${i.id}">${i.name}</option>`).join('')}</select><table><thead><tr><th>Nama</th><th>Jumlah</th><th>Total</th><th>Pengguna</th><th>Tanggal</th></tr></thead><tbody id="histBody"></tbody></table></div>`;
@@ -203,14 +216,17 @@
       el('histMed').addEventListener('change',()=>refreshHist(el('histMed').value)); refreshHist();
     }
 
+    // Settings (simple)
     function renderSettings(){
       clearActiveMenu(); document.querySelector('[data-tab="settings"]').classList.add('active');
       showView(`<div class="card"><h3>Pengaturan</h3><p class="muted">Pengaturan sederhana</p><div style="margin-top:8px"><button id="btnResetAll" class="btn btn-ghost small">Reset Semua Data (Hapus)</button></div></div>`);
       el('btnResetAll').addEventListener('click',()=>{ if(confirm('Hapus semua data dan mulai ulang?')){ localStorage.clear(); alert('Data dihapus. Sistem akan reload.'); window.location.reload(); } });
     }
 
+    // -------------------- Utilities --------------------
     function openMedForm(id){
-      if(!id){
+      // modal-like simple prompt flow
+      if(!id){ // add new
         const name = prompt('Nama obat:'); if(!name) return; const cat = prompt('Kategori:')||''; const price = Number(prompt('Harga jual:','0')||0); const buy = Number(prompt('Harga beli:','0')||0); const stock = Number(prompt('Stok awal:','0')||0); const m={id:genId('m'),name,category:cat,price,buyPrice:buy,stock}; inventory.push(m); addUserLog(currentUser,'Tambah obat '+name); save(); renderInventory(searchInput.value); return;
       }
       const it = findById(id); if(!it) return; const newName = prompt('Nama obat:',it.name); if(newName===null) return; it.name = newName; it.category = prompt('Kategori:',it.category)||it.category; it.price = Number(prompt('Harga jual:',it.price)||it.price); it.buyPrice = Number(prompt('Harga beli:',it.buyPrice)||it.buyPrice); it.stock = Number(prompt('Stok:',it.stock)||it.stock); addUserLog(currentUser,'Edit obat '+it.name); save(); renderInventory(searchInput.value);
@@ -220,21 +236,27 @@
 
     function exportCSV(type){
       let rows=[]; if(type==='inventory'){ rows = [['Nama','Kategori','HargaJual','HargaBeli','Stok'], ...inventory.map(i=>[i.name,i.category,i.price,i.buyPrice,i.stock])]; }
-      const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\\n'); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=type+'.csv'; a.click(); URL.revokeObjectURL(url); addUserLog(currentUser,'Ekspor CSV '+type);
+      const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n'); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=type+'.csv'; a.click(); URL.revokeObjectURL(url); addUserLog(currentUser,'Ekspor CSV '+type);
     }
 
+    // -------------------- Wiring menu events (after funcs defined) --------------------
     menuButtons.forEach(b=>b.addEventListener('click',()=>{
       const t=b.dataset.tab; switch(t){ case 'inventory': renderInventory(searchInput.value); break; case 'transaction': renderTransaction(); break; case 'purchase': renderPurchase(); break; case 'finance': renderFinance(); break; case 'history': renderHistory(); break; case 'settings': renderSettings(); break; default: renderInventory(); }
     }));
 
+    // search
     searchInput.addEventListener('input', (e)=>{ renderInventory(e.target.value); });
 
+    // logout
     logoutBtn.addEventListener('click', ()=>{ localStorage.removeItem('currentUser'); localStorage.removeItem('userRole'); window.location.href='index.html'; });
 
+    // add sample button
     addSampleBtn.addEventListener('click', ()=>{ seedIfEmpty(); alert('Contoh obat ditambahkan (jika belum ada).'); renderInventory(); });
 
+    // Initial route
     renderInventory();
 
+    // expose for debugging
     window._app = { inventory, transactions, purchases, userLogs };
   </script>
 </body>
