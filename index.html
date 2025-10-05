@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Apotek Gia Farma — Selamat Datang</title>
+  <style>
+    :root{--health-1:#00aab4;--health-2:#3dbe81;--bg:#f8fafc}
+    body{font-family:Inter,system-ui,Arial;background:var(--bg);margin:0}
+    header{background:linear-gradient(90deg,var(--health-1),var(--health-2));color:#fff;padding:24px 16px;text-align:center}
+    .logo{width:80px;height:80px;border-radius:16px;background:#fff;padding:8px;object-fit:cover}
+    main{max-width:700px;margin:60px auto;text-align:center}
+    input{padding:8px;width:60%;border-radius:6px;border:1px solid #ccc}
+    button{padding:10px 18px;background:var(--health-1);color:#fff;border:0;border-radius:8px;cursor:pointer}
+  </style>
+</head>
+<body>
+  <header>
+    <img src="https://cdn-icons-png.flaticon.com/512/2966/2966484.png" alt="Logo" class="logo">
+    <h1>Apotek Gia Farma</h1>
+  </header>
+  <main>
+    <h2>Selamat Datang</h2>
+    <p>Silakan login untuk melanjutkan ke sistem Apotek Gia Farma.</p>
+    <div id="loginContainer">
+      <input id="usernameInput" placeholder="Masukkan nama pengguna"><br><br>
+      <button id="loginBtn">Login</button>
+    </div>
+    <p class="muted" style="color:#6b7280;margin-top:16px">Masukkan 'admin' untuk akses admin, nama lain untuk kasir.</p>
+  </main>
+  <script>
+    const loginBtn = document.getElementById('loginBtn');
+    loginBtn.addEventListener('click', ()=>{
+      const input = document.getElementById('usernameInput');
+      const name = input.value.trim();
+      const valid = /^[a-zA-Z0-9_\s]{3,20}$/;
+      if(!name){ alert('Nama pengguna wajib diisi'); return; }
+      if(!valid.test(name)){ alert('Nama hanya boleh huruf, angka, spasi, atau garis bawah (3–20 karakter)'); return; }
+      localStorage.setItem('currentUser', name);
+      localStorage.setItem('userRole', (name.toLowerCase()==='admin') ? 'admin' : 'kasir');
+      window.location.href = 'dashboard.html';
+    });
+  </script>
+</body>
+</html>

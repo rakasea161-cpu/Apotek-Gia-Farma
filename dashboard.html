@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Apotek Gia Farma — Dashboard</title>
+  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2966/2966484.png" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --health-1:#00aab4; --health-2:#3dbe81; --accent:#60a5fa; --bg:#f7fbfb; --card:#ffffff; --muted:#6b7280; --danger:#b91c1c;
+    }
+    *{box-sizing:border-box}
+    body{font-family:Inter,system-ui,Segoe UI,Arial;background:var(--bg);margin:0;color:#0f172a}
+    .app{display:flex;min-height:100vh}
+    nav.sidebar{width:260px;background:linear-gradient(180deg,var(--health-1),var(--health-2));color:#fff;padding:18px 12px}
+    .brand{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+    .brand img{width:44px;height:44px;border-radius:8px;background:#fff;padding:6px}
+    .brand h2{font-size:18px;margin:0}
+    .menu{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+    .menu button{background:transparent;border:0;color:#fff;text-align:left;padding:10px 12px;border-radius:8px;cursor:pointer;font-weight:600}
+    .menu button.active{background:rgba(255,255,255,0.12);}
+    .userbox{margin-top:18px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08)}
+    .userbox .name{font-weight:700}
+    main.content{flex:1;padding:18px}
+    header.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+    header.top .search{flex:1;max-width:480px}
+    input,select,textarea,button{font-family:inherit}
+    .card{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.06)}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{padding:8px;border-bottom:1px solid #eef2f7;text-align:left}
+    th{font-size:13px;color:var(--muted)}
+    .muted{color:var(--muted)}
+    .actions{display:flex;gap:8px}
+    .btn{padding:8px 10px;border-radius:8px;border:0;cursor:pointer}
+    .btn-primary{background:var(--health-1);color:#fff}
+    .btn-ghost{background:transparent;border:1px solid #e6edf3}
+    .small{font-size:13px;padding:6px 8px}
+    .flex{display:flex;gap:8px;align-items:center}
+    .grid{display:grid;gap:12px}
+    @media(max-width:900px){nav.sidebar{display:none}.app{flex-direction:column}nav.mobile{display:flex}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <nav class="sidebar" role="navigation">
+      <div class="brand">
+        <img src="https://cdn-icons-png.flaticon.com/512/2966/2966484.png" alt="logo">
+        <div>
+          <h2>Apotek Gia Farma</h2>
+          <div class="muted small">Sistem Manajemen Apotek</div>
+        </div>
+      </div>
+
+      <div class="menu" id="menu">
+        <button data-tab="inventory" class="active">📦 Persediaan</button>
+        <button data-tab="transaction">💊 Transaksi</button>
+        <button data-tab="purchase">📥 Pembelian</button>
+        <button data-tab="finance">💰 Keuangan</button>
+        <button data-tab="history">🧾 Riwayat</button>
+        <button data-tab="settings">⚙️ Pengaturan</button>
+      </div>
+
+      <div class="userbox">
+        <div class="name" id="userName">--</div>
+        <div class="muted" id="userRole">--</div>
+        <div style="margin-top:10px">
+          <button id="logoutBtn" class="btn small" style="background:#fff;color:var(--health-1);width:100%">🚪 Logout</button>
+        </div>
+      </div>
+    </nav>
+
+    <main class="content">
+      <header class="top">
+        <div class="flex">
+          <input id="searchInput" class="card" placeholder="Cari obat..." style="padding:8px;width:320px;border-radius:8px;border:1px solid #e6edf3">
+          <button id="addSample" class="btn btn-ghost small">Tambah contoh</button>
+        </div>
+        <div class="flex">
+          <div class="muted">Versi: <b>1.0</b></div>
+        </div>
+      </header>
+
+      <section id="view" class="grid"></section>
+
+    </main>
+  </div>
+
+  <script>
+    const currentUser = localStorage.getItem('currentUser');
+    const userRole = localStorage.getItem('userRole');
+    if(!currentUser){ window.location.href = 'index.html'; }
+
+    let inventory = JSON.parse(localStorage.getItem('inventory')) || [];
+    let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+    let purchases = JSON.parse(localStorage.getItem('purchases')) || [];
+    let userLogs = JSON.parse(localStorage.getItem('userLogs')) || [];
+
+    const el = id => document.getElementById(id);
+    function genId(p='id'){ return p+ '_' + Math.random().toString(36).slice(2,9); }
+    function formatRupiah(n){ return 'Rp ' + new Intl.NumberFormat('id-ID').format(Number(n||0)); }
+    function save(){ localStorage.setItem('inventory', JSON.stringify(inventory)); localStorage.setItem('transactions', JSON.stringify(transactions)); localStorage.setItem('purchases', JSON.stringify(purchases)); localStorage.setItem('userLogs', JSON.stringify(userLogs)); }
+    function addUserLog(user,activity){ userLogs.push({id:genId('log'),user,activity,time:new Date().toLocaleString()}); save(); }
+
+    const menuButtons = document.querySelectorAll('#menu button');
+    const view = el('view');
+    const searchInput = el('searchInput');
+    const logoutBtn = el('logoutBtn');
+    const userName = el('userName');
+    const userRoleEl = el('userRole');
+    const addSampleBtn = el('addSample');
+
+    userName.textContent = currentUser || '-';
+    userRoleEl.textContent = userRole || '-';
+
+    function seedIfEmpty(){
+      if(!localStorage.getItem('inventory')){
+        inventory = [
+          {id:genId('m'),name:'Paracetamol 500mg',category:'Analgesik',price:5000,buyPrice:3000,stock:50},
+          {id:genId('m'),name:'Amoxicillin 250mg',category:'Antibiotik',price:12000,buyPrice:8000,stock:30},
+          {id:genId('m'),name:'Vitamin C 1000mg',category:'Vitamin',price:15000,buyPrice:9000,stock:20}
+        ]; transactions = []; purchases = []; userLogs = [{id:genId('log'),user:'system',activity:'seed',time:new Date().toLocaleString()}]; save();
+      }
+    }
+    seedIfEmpty();
+
+    function clearActiveMenu(){ menuButtons.forEach(b=>b.classList.remove('active')); }
+    function showView(html){ view.innerHTML = html; }
+
+    function renderInventory(filter=''){
+      clearActiveMenu(); document.querySelector('[data-tab="inventory"]').classList.add('active');
+      const rows = inventory.filter(i => !filter || i.name.toLowerCase().includes(filter.toLowerCase()));
+      let html = `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h3>Persediaan Obat</h3><div class="flex"><button id="btnAddMed" class="btn btn-primary small">+ Tambah Obat</button><button id="btnExportInv" class="btn btn-ghost small">Ekspor CSV</button></div></div>`;
+      html += `<table><thead><tr><th>Nama</th><th>Kategori</th><th>Harga Jual</th><th>Harga Beli</th><th>Stok</th><th>Aksi</th></tr></thead><tbody>`;
+      if(rows.length===0) html += '<tr><td colspan="6" class="muted">Tidak ada data.</td></tr>';
+      rows.forEach(it=>{
+        html += `<tr data-id="${it.id}"><td>${it.name}</td><td>${it.category||'-'}</td><td>${formatRupiah(it.price)}</td><td>${formatRupiah(it.buyPrice)}</td><td>${it.stock}</td><td><div class="actions"><button data-act="edit" class="btn btn-ghost small">Edit</button><button data-act="del" class="btn btn-ghost small">Hapus</button></div></td></tr>`;
+      });
+      html += `</tbody></table></div>`;
+      showView(html);
+
+      el('btnAddMed').addEventListener('click', ()=>openMedForm());
+      el('btnExportInv').addEventListener('click', ()=>exportCSV('inventory'));
+      document.querySelectorAll('button[data-act]').forEach(b=>b.addEventListener('click', (ev)=>{
+        const tr = ev.target.closest('tr'); const id = tr.dataset.id; const act = ev.target.dataset.act;
+        if(act==='edit') openMedForm(id);
+        if(act==='del'){
+          if(confirm('Hapus obat ini?')){ inventory = inventory.filter(x=>x.id!==id); addUserLog(currentUser,'Hapus obat '+id); save(); renderInventory(searchInput.value); }
+        }
+      }));
+    }
+
+    function renderTransaction(){
+      clearActiveMenu(); document.querySelector('[data-tab="transaction"]').classList.add('active');
+      let html = `<div class="card"><h3>Transaksi Penjualan</h3>
+        <form id="trxForm">
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="trxMed"></select>
+            <input id="trxQty" type="number" value="1" min="1" style="width:100px;padding:8px;border-radius:8px;border:1px solid #e6edf3">
+            <input id="trxBuyer" placeholder="Nama pembeli (opsional)" style="padding:8px;border-radius:8px;border:1px solid #e6edf3">
+            <button class="btn btn-primary small">Tambah</button>
+          </div>
+        </form>
+        <table><thead><tr><th>Obat</th><th>Jumlah</th><th>Total</th><th>Profit</th><th>Pengguna</th><th>Tanggal</th></tr></thead><tbody id="trxBody"></tbody></table>
+      </div>`;
+      showView(html);
+      const trxMed = el('trxMed'); const trxForm = el('trxForm'); const trxBody = el('trxBody');
+      trxMed.innerHTML = inventory.map(i=>`<option value="${i.id}">${i.name} (stok:${i.stock})</option>`).join('') || '<option value="">-- kosong --</option>';
+      function refreshTrx(){ trxBody.innerHTML = transactions.slice().reverse().map(t=>`<tr><td>${t.name}</td><td>${t.qty}</td><td>${formatRupiah(t.total)}</td><td>${formatRupiah(t.profit)}</td><td>${t.user||''}</td><td>${t.date}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Belum ada transaksi.</td></tr>'; }
+      trxForm.addEventListener('submit',(e)=>{ e.preventDefault(); const id=trxMed.value; const qty=Number(el('trxQty').value||0); if(!id){alert('Pilih obat'); return;} const med=findById(id); if(!med){alert('Obat tidak ditemukan');return;} if(med.stock<qty){alert('Stok tidak cukup');return;} med.stock -= qty; const total = med.price * qty; const profit = (med.price - med.buyPrice)*qty; const rec = {id:genId('t'),medId:med.id,name:med.name,qty,total,profit,user:currentUser,date:new Date().toLocaleString()}; transactions.push(rec); addUserLog(currentUser,`Jual ${med.name} x${qty}`); save(); refreshTrx(); renderInventory(searchInput.value); });
+      refreshTrx();
+    }
+
+    function renderPurchase(){
+      clearActiveMenu(); document.querySelector('[data-tab="purchase"]').classList.add('active');
+      let html = `<div class="card"><h3>Pembelian (Tambah Stok)</h3>
+        <form id="purForm"><div style="display:flex;gap:8px;align-items:center"><select id="purMed"></select><input id="purQty" type="number" value="1" min="1" style="width:100px"><input id="purPrice" placeholder="Harga beli per unit (opsional)"></div><div style="margin-top:8px"><button class="btn btn-primary small">Tambahkan Stok</button></div></form>
+        <table><thead><tr><th>Obat</th><th>Jumlah</th><th>Biaya</th><th>Tanggal</th></tr></thead><tbody id="purBody"></tbody></table></div>`;
+      showView(html);
+      el('purMed').innerHTML = inventory.map(i=>`<option value="${i.id}">${i.name} (stok:${i.stock})</option>`).join('');
+      function refreshPur(){ el('purBody').innerHTML = purchases.slice().reverse().map(p=>`<tr><td>${p.name}</td><td>${p.qty}</td><td>${formatRupiah(p.cost)}</td><td>${p.date}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Belum ada pembelian.</td></tr>'; }
+      el('purForm').addEventListener('submit',(e)=>{ e.preventDefault(); const id=el('purMed').value; const qty=Number(el('purQty').value||0); const pricePer=Number(el('purPrice').value||0); if(!id||qty<=0){alert('Lengkapi data'); return;} const med=findById(id); med.stock += qty; if(pricePer>0) med.buyPrice = pricePer; const cost = (pricePer>0?pricePer:med.buyPrice)*qty; purchases.push({id:genId('pur'),medId:med.id,name:med.name,qty,cost,user:currentUser,date:new Date().toLocaleString()}); addUserLog(currentUser,`Beli ${med.name} x${qty}`); save(); refreshPur(); renderInventory(searchInput.value); });
+      refreshPur();
+    }
+
+    function renderFinance(){
+      if(userRole !== 'admin'){ clearActiveMenu(); document.querySelector('[data-tab="finance"]').classList.add('active'); showView('<div class="card"><h3>🔒 Akses Ditolak</h3><p>Menu Keuangan hanya untuk admin.</p></div>'); return; }
+      clearActiveMenu(); document.querySelector('[data-tab="finance"]').classList.add('active');
+      const totalSales = transactions.reduce((a,b)=>a+b.total,0);
+      const totalProfit = transactions.reduce((a,b)=>a+b.profit,0);
+      const totalPurchase = purchases.reduce((a,b)=>a+b.cost,0);
+      const balance = totalSales - totalPurchase;
+      let html = `<div class="card"><h3>Rekap Keuangan</h3><div style="display:flex;gap:12px"><div><p class="muted">Total Penjualan</p><h3>${formatRupiah(totalSales)}</h3></div><div><p class="muted">Total Pembelian</p><h3>${formatRupiah(totalPurchase)}</h3></div><div><p class="muted">Laba Kotor</p><h3>${formatRupiah(totalProfit)}</h3></div><div><p class="muted">Saldo Bersih</p><h3>${formatRupiah(balance)}</h3></div></div><canvas id="financeChart" height="80"></canvas></div>`;
+      showView(html);
+      const ctx = document.getElementById('financeChart').getContext('2d'); if(window._financeChart) window._financeChart.destroy(); window._financeChart = new Chart(ctx,{type:'bar',data:{labels:['Penjualan','Pembelian','Laba Kotor','Saldo Bersih'],datasets:[{label:'Rupiah',data:[totalSales,totalPurchase,totalProfit,balance],backgroundColor:["#3dbe81","#f87171","#60a5fa","#00aab4"]}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
+    }
+
+    function renderHistory(){
+      clearActiveMenu(); document.querySelector('[data-tab="history"]').classList.add('active');
+      let html = `<div class="card"><h3>Riwayat Transaksi Obat</h3><label>Pilih Obat</label><select id="histMed"><option value="">-- Semua --</option>${inventory.map(i=>`<option value="${i.id}">${i.name}</option>`).join('')}</select><table><thead><tr><th>Nama</th><th>Jumlah</th><th>Total</th><th>Pengguna</th><th>Tanggal</th></tr></thead><tbody id="histBody"></tbody></table></div>`;
+      showView(html);
+      function refreshHist(filter=''){ const rows = transactions.filter(t=>!filter||t.medId===filter).slice().reverse(); el('histBody').innerHTML = rows.map(r=>`<tr><td>${r.name}</td><td>${r.qty}</td><td>${formatRupiah(r.total)}</td><td>${r.user||''}</td><td>${r.date}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Tidak ada transaksi.</td></tr>'; }
+      el('histMed').addEventListener('change',()=>refreshHist(el('histMed').value)); refreshHist();
+    }
+
+    function renderSettings(){
+      clearActiveMenu(); document.querySelector('[data-tab="settings"]').classList.add('active');
+      showView(`<div class="card"><h3>Pengaturan</h3><p class="muted">Pengaturan sederhana</p><div style="margin-top:8px"><button id="btnResetAll" class="btn btn-ghost small">Reset Semua Data (Hapus)</button></div></div>`);
+      el('btnResetAll').addEventListener('click',()=>{ if(confirm('Hapus semua data dan mulai ulang?')){ localStorage.clear(); alert('Data dihapus. Sistem akan reload.'); window.location.reload(); } });
+    }
+
+    function openMedForm(id){
+      if(!id){
+        const name = prompt('Nama obat:'); if(!name) return; const cat = prompt('Kategori:')||''; const price = Number(prompt('Harga jual:','0')||0); const buy = Number(prompt('Harga beli:','0')||0); const stock = Number(prompt('Stok awal:','0')||0); const m={id:genId('m'),name,category:cat,price,buyPrice:buy,stock}; inventory.push(m); addUserLog(currentUser,'Tambah obat '+name); save(); renderInventory(searchInput.value); return;
+      }
+      const it = findById(id); if(!it) return; const newName = prompt('Nama obat:',it.name); if(newName===null) return; it.name = newName; it.category = prompt('Kategori:',it.category)||it.category; it.price = Number(prompt('Harga jual:',it.price)||it.price); it.buyPrice = Number(prompt('Harga beli:',it.buyPrice)||it.buyPrice); it.stock = Number(prompt('Stok:',it.stock)||it.stock); addUserLog(currentUser,'Edit obat '+it.name); save(); renderInventory(searchInput.value);
+    }
+
+    function findById(id){ return inventory.find(x=>x.id===id); }
+
+    function exportCSV(type){
+      let rows=[]; if(type==='inventory'){ rows = [['Nama','Kategori','HargaJual','HargaBeli','Stok'], ...inventory.map(i=>[i.name,i.category,i.price,i.buyPrice,i.stock])]; }
+      const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\\n'); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=type+'.csv'; a.click(); URL.revokeObjectURL(url); addUserLog(currentUser,'Ekspor CSV '+type);
+    }
+
+    menuButtons.forEach(b=>b.addEventListener('click',()=>{
+      const t=b.dataset.tab; switch(t){ case 'inventory': renderInventory(searchInput.value); break; case 'transaction': renderTransaction(); break; case 'purchase': renderPurchase(); break; case 'finance': renderFinance(); break; case 'history': renderHistory(); break; case 'settings': renderSettings(); break; default: renderInventory(); }
+    }));
+
+    searchInput.addEventListener('input', (e)=>{ renderInventory(e.target.value); });
+
+    logoutBtn.addEventListener('click', ()=>{ localStorage.removeItem('currentUser'); localStorage.removeItem('userRole'); window.location.href='index.html'; });
+
+    addSampleBtn.addEventListener('click', ()=>{ seedIfEmpty(); alert('Contoh obat ditambahkan (jika belum ada).'); renderInventory(); });
+
+    renderInventory();
+
+    window._app = { inventory, transactions, purchases, userLogs };
+  </script>
+</body>
+</html>
